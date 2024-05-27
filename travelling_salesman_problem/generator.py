@@ -12,7 +12,7 @@ def save_map(cities, filename):
 
 def main():
     n_maps = 10
-    n_cities = 10
+    n_cities = 100
     for i in range(n_maps):
         cities = generate_random_map(n_cities)
         save_map(cities, f'travelling_salesman_problem/maps/map_{n_cities}_{uuid.uuid4()}.npy')
