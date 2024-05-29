@@ -59,3 +59,35 @@ def create_dataloader(data_dir, batch_size=32, split='train', shuffle=True, num_
     return dataloader
 
 
+class TSMPModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(TSMPModel, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.encoder = nn.LSTM(input_dim, hidden_dim, batch_first=True)
+        self.decoder = nn.LSTM(output_dim, hidden_dim, batch_first=True)
+        self.attention = nn.Linear(hidden_dim * 2, hidden_dim)
+        self.out = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, src, trg, teacher_forcing_ratio=0.5):
+        batch_size, src_len, _ = src.size()
+        trg_len = trg.size(1)
+        trg_vocab_size = self.out.out_features
+
+        encoder_outputs, (hidden, cell) = self.encoder(src)
+        outputs = torch.zeros(batch_size, trg_len, trg_vocab_size).to(src.device)
+        input = trg[:, 0, :]
+
+        for t in range(1, trg_len):
+            output, (hidden, cell) = self.decoder(input.unsqueeze(1), (hidden, cell))
+            attn_weights = torch.bmm(encoder_outputs, hidden.unsqueeze(2)).squeeze(2)
+            attn_weights = torch.softmax(attn_weights, dim=1)
+            context = torch.bmm(encoder_outputs.transpose(1, 2), attn_weights.unsqueeze(2)).squeeze(2)
+            output = torch.tanh(self.attention(torch.cat((context, hidden.squeeze(0)), dim=1)))
+            output = self.out(output)
+            outputs[:, t, :] = output
+            teacher_force = np.random.random() < teacher_forcing_ratio
+            input = trg[:, t, :] if teacher_force else output
+
+        return outputs
+    
+    
