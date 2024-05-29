@@ -78,7 +78,7 @@ def plot_path(cities, path):
 
 def main():
 
-    filename = 'travelling_salesman_problem/maps/map_18_e5b766e4-69d2-4c3e-a952-58d2b248dfa6.npy'
+    filename = 'travelling_salesman_problem/maps/X-data/train/map_18_00b41c23-de34-4f7c-8de6-edbe4c750946.npy'
     cities = load_map(filename)
     
     start_time = time.time()

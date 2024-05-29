@@ -1,62 +1,61 @@
 import torch
 from torch import nn
 import numpy as np
+from torch.utils.data import Dataset, DataLoader
+import os
+from torchdata.datapipes.iter import IterableWrapper
 
-class Traveller_model(nn.Module):
-    def __init__(self, input_size, hidden_size):
-        super(Traveller_model, self).__init__()
-        self.encoder = nn.LSTM(input_size, hidden_size, batch_first=True)
-        self.decoder = nn.LSTM(input_size, hidden_size, batch_first=True)
-        self.pointer = nn.Linear(hidden_size, 1)
-        self.hidden_size = hidden_size
-
-    def forward(self, inputs):
-        batch_size, seq_len, _ = inputs.size()
-
-        encoder_outputs, (hidden, cell) = self.encoder(inputs)
-
-        decoder_input = torch.zeros(batch_size, 1, inputs.size(2)).to(inputs.device)
-        decoder_hidden = hidden
-        decoder_cell = cell
- 
-        pointers = []
+class TSPDataParser(Dataset):
+    def __init__(self, data_dir, split='train'):
+        """
+        Args:
+            data_dir (string): Directory with all the numpy files.
+            split (string): One of 'train', 'val', 'test' to specify the data split.
+        """
+        self.data_dir = data_dir
+        self.split = split
+        self.X_dir = os.path.join(data_dir, 'X-data', split)
+        self.Y_dir = os.path.join(data_dir, 'Y-data', split)
         
-        for _ in range(seq_len):
-            decoder_output, (decoder_hidden, decoder_cell) = self.decoder(decoder_input, (decoder_hidden, decoder_cell))
-            pointer_logits = self.pointer(decoder_output).squeeze(-1)
-            pointer = torch.argmax(pointer_logits, dim=1)
-            pointers.append(pointer)
-
-            decoder_input = torch.gather(inputs, 1, pointer.view(-1, 1, 1).expand(-1, 1, inputs.size(2)))
+        # Get list of all file names (assuming both X and Y have same file names)
+        self.file_names = [f for f in os.listdir(self.X_dir) if os.path.isfile(os.path.join(self.X_dir, f))]
+    
+    def __len__(self):
+        return len(self.file_names)
+    
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
         
-        pointers = torch.stack(pointers).permute(1, 0)
-        return pointers
+        # Get file name
+        file_name = self.file_names[idx]
+        
+        # Load X data
+        X_path = os.path.join(self.X_dir, file_name)
+        X = np.load(X_path)
+        X = torch.tensor(X, dtype=torch.float32)
+        
+        # Load Y data
+        Y_path = os.path.join(self.Y_dir, file_name)
+        Y = np.load(Y_path)
+        Y = torch.tensor(Y, dtype=torch.float32)
+        
+        return X, Y
 
-def load_city_map(filename):
-    return np.load(filename)
+def create_dataloader(data_dir, batch_size=32, split='train', shuffle=True, num_workers=0):
+    """
+    Args:
+        data_dir (string): Directory with all the numpy files.
+        batch_size (int): Batch size for the dataloader.
+        split (string): One of 'train', 'val', 'test' to specify the data split.
+        shuffle (bool): Whether to shuffle the data.
+        num_workers (int): Number of workers for data loading.
+        
+    Returns:
+        DataLoader: A PyTorch DataLoader for the specified data split.
+    """
+    dataset = TSPDataParser(data_dir, split)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+    return dataloader
 
-def preprocess_data(city_map):
-    return city_map
 
-def define_model(city_map):
-    input_size = city_map.shape[-1]
-    hidden_size = 128
-    model = Traveller_model(input_size, hidden_size)
-    return model
-
-def main():
-    filename = 'travelling_salesman_problem/maps/map_22_f991b792-8782-4073-b869-9d92d948e5db.npy'
-    city_map = load_city_map(filename)
-    city_map = preprocess_data(city_map)
-    city_map = torch.tensor(city_map).float().unsqueeze(0)
-
-    model = define_model(city_map)
-    model.eval()  
-    with torch.no_grad():  
-        best_path = model(city_map)
-    print("Best path (indices):", best_path)
-    best_path = best_path.squeeze().tolist()
-    print("Best path:", best_path)
-
-if __name__ == '__main__':
-    main()
