@@ -2,20 +2,18 @@ import numpy as np
 from itertools import combinations
 import matplotlib.pyplot as plt
 from sklearn.manifold import MDS
+import time
 
 def load_map(filename):
     return np.load(filename)
 
 def held_karp(cities):
     n_cities = cities.shape[0]
-    all_indices = range(n_cities)
     
-    # Create a dictionary to store the minimum cost to reach each subset ending in each city
     C = {}
     for k in range(1, n_cities):
         C[(1 << k, k)] = (cities[0, k], 0)
     
-    # Iterate subsets of increasing length
     for subset_size in range(2, n_cities):
         for subset in combinations(range(1, n_cities), subset_size):
             bits = sum([1 << bit for bit in subset])
@@ -28,14 +26,12 @@ def held_karp(cities):
                     res.append((C[(prev_bits, m)][0] + cities[m, k], m))
                 C[(bits, k)] = min(res)
     
-    # Calculate the minimum cost to return to the start city
     bits = (2**n_cities - 1) - 1
     res = []
     for k in range(1, n_cities):
         res.append((C[(bits, k)][0] + cities[k, 0], k))
     opt, parent = min(res)
     
-    # Reconstruct the optimal path
     path = [0]
     bits = (2**n_cities - 1) - 1
     for i in range(n_cities - 1):
@@ -43,13 +39,17 @@ def held_karp(cities):
         bits, parent = bits & ~(1 << parent), C[(bits, parent)][1]
     path.append(0)
     
-    return path, opt
+    path.append(opt)
+    
+    return np.array(path)
+
 
 def plot_path(cities, path):
-    # Symmetrize the cities distance matrix
+    distance = path[-1]  # Extract the distance
+    path = path[:-1].astype(int)  # Convert the rest of the path to integers
+    
     sym_cities = (cities + cities.T) / 2
     
-    # Use MDS to find a 2D representation of the cities based on the distance matrix
     mds = MDS(n_components=2, dissimilarity='precomputed', random_state=42)
     coordinates = mds.fit_transform(sym_cities)
     
@@ -59,32 +59,40 @@ def plot_path(cities, path):
     for i, coord in enumerate(coordinates):
         plt.text(coord[0], coord[1], str(i), fontsize=12, ha='right')
 
-    # Plot lines between all pairs of cities
     for i in range(len(coordinates)):
         for j in range(i + 1, len(coordinates)):
             start = coordinates[i]
             end = coordinates[j]
             plt.plot([start[0], end[0]], [start[1], end[1]], 'gray', linestyle='dotted')
 
-    # Highlight the optimal path
-    for i in range(len(path) - 1):
+    for i in range(len(path) - 1):  # Plot the path excluding the distance
         start = coordinates[path[i]]
         end = coordinates[path[i + 1]]
         plt.plot([start[0], end[0]], [start[1], end[1]], 'b-')
 
     plt.xlabel('X Coordinate')
     plt.ylabel('Y Coordinate')
-    plt.title('Travelling Salesman Problem - Map and Optimal Path')
+    plt.title(f'Travelling Salesman Problem - Map and Optimal Path\nTotal Distance: {distance}')
     plt.grid(True)
     plt.show()
 
 def main():
-    filename = 'travelling_salesman_problem/maps/map_22_f991b792-8782-4073-b869-9d92d948e5db.npy'
+
+    filename = 'travelling_salesman_problem/maps/map_18_e5b766e4-69d2-4c3e-a952-58d2b248dfa6.npy'
     cities = load_map(filename)
-    path, distance = held_karp(cities)
+    
+    start_time = time.time()
+    result = held_karp(cities)
+    end_time = time.time()
+    
+    elapsed_time = end_time - start_time
+    path, distance = result[:-1], result[-1]
+    
     print(f'Best path: {path}')
     print(f'Distance: {distance}')
-    plot_path(cities, path)
+    print(f'Time taken: {elapsed_time:.2f} seconds')
+    
+    plot_path(cities, result)
 
 if __name__ == '__main__':
     main()

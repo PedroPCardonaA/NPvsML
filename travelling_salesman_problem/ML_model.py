@@ -2,9 +2,9 @@ import torch
 from torch import nn
 import numpy as np
 
-class PointerNet(nn.Module):
+class Traveller_model(nn.Module):
     def __init__(self, input_size, hidden_size):
-        super(PointerNet, self).__init__()
+        super(Traveller_model, self).__init__()
         self.encoder = nn.LSTM(input_size, hidden_size, batch_first=True)
         self.decoder = nn.LSTM(input_size, hidden_size, batch_first=True)
         self.pointer = nn.Linear(hidden_size, 1)
@@ -41,7 +41,7 @@ def preprocess_data(city_map):
 def define_model(city_map):
     input_size = city_map.shape[-1]
     hidden_size = 128
-    model = PointerNet(input_size, hidden_size)
+    model = Traveller_model(input_size, hidden_size)
     return model
 
 def main():
