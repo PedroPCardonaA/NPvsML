@@ -4,6 +4,8 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import os
 from torchdata.datapipes.iter import IterableWrapper
+from Training import train
+
 
 class TSPDataParser(Dataset):
     def __init__(self, data_dir, split='train'):
@@ -91,3 +93,25 @@ class TSMPModel(nn.Module):
         return outputs
     
     
+def main():
+    data_dir = 'travelling_salesman_problem/maps'
+    train_dataloader = create_dataloader(data_dir, split='train')
+    val_dataloader = create_dataloader(data_dir, split='val')
+    test_dataloader = create_dataloader(data_dir, split='test')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    input_dim = train_dataloader.dataset[0][0].shape[1]
+    hidden_dim = 128
+    output_dim = train_dataloader.dataset[0][1].shape[1] + 2
+
+    model = TSMPModel(input_dim=input_dim, hidden_dim=hidden_dim, output_dim=output_dim)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    
+    train(model, train_dataloader, val_dataloader, test_dataloader, optimizer, epochs=5, device=device)
+
+    # Save the model
+    torch.save(model.state_dict(), 'travelling_salesman_problem/maps/model.pth')
+
+
+if __name__ == '__main__':
+    main()
