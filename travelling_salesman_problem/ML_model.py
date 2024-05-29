@@ -1,11 +1,9 @@
 import torch
-from torch import nn
-import numpy as np
-from torch.utils.data import Dataset, DataLoader
-import os
-from torchdata.datapipes.iter import IterableWrapper
 from Training import train
-
+from torch.utils.data import DataLoader, Dataset
+import os
+import numpy as np
+from torch import nn
 
 class TSPDataParser(Dataset):
     def __init__(self, data_dir, split='train'):
@@ -60,58 +58,136 @@ def create_dataloader(data_dir, batch_size=32, split='train', shuffle=True, num_
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     return dataloader
 
+class AttentionBlock(nn.Module):
+    def __init__(self, embed_dim, num_heads):
+        super(AttentionBlock, self).__init__()
+        self.attention = nn.MultiheadAttention(embed_dim, num_heads)
+        self.norm = nn.LayerNorm(embed_dim)
+        self.dropout = nn.Dropout(0.3)
+
+    def forward(self, x):
+        attn_output, _ = self.attention(x, x, x)
+        x = x + self.dropout(attn_output)
+        x = self.norm(x)
+        return x
+
+class TransformerBlock(nn.Module):
+    def __init__(self, embed_dim, num_heads, ff_dim):
+        super(TransformerBlock, self).__init__()
+        self.attention_block = AttentionBlock(embed_dim, num_heads)
+        self.ff_block = nn.Sequential(
+            nn.Linear(embed_dim, ff_dim),
+            nn.ReLU(),
+            nn.Linear(ff_dim, embed_dim)
+        )
+        self.norm = nn.LayerNorm(embed_dim)
+        self.dropout = nn.Dropout(0.3)
+
+    def forward(self, x):
+        x = self.attention_block(x)
+        ff_output = self.ff_block(x)
+        x = x + self.dropout(ff_output)
+        x = self.norm(x)
+        return x
+    
+class ResidualBlock(nn.Module):
+    def __init__(self, in_dim, out_dim):
+        super(ResidualBlock, self).__init__()
+        self.block = nn.Sequential(
+            nn.Linear(in_dim, out_dim),
+            nn.BatchNorm1d(out_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(out_dim, out_dim),
+            nn.BatchNorm1d(out_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3)
+        )
+        self.shortcut = nn.Sequential()
+        if in_dim != out_dim:
+            self.shortcut = nn.Sequential(
+                nn.Linear(in_dim, out_dim),
+                nn.BatchNorm1d(out_dim)
+            )
+
+    def forward(self, x):
+        out = self.block(x)
+        out += self.shortcut(x)
+        return nn.ReLU()(out)
+
 
 class TSMPModel(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_blocks=4, num_heads=8, ff_dim=512):
+        """
+        Args:
+            input_dim (int): Dimension of the input feature vector.
+            hidden_dim (int): Dimension of the hidden layers.
+            output_dim (int): Dimension of the output feature vector.
+            num_blocks (int): Number of residual blocks to include.
+            num_heads (int): Number of attention heads in the transformer block.
+            ff_dim (int): Dimension of the feedforward network in the transformer block.
+        """
         super(TSMPModel, self).__init__()
-        self.hidden_dim = hidden_dim
-        self.encoder = nn.LSTM(input_dim, hidden_dim, batch_first=True)
-        self.decoder = nn.LSTM(output_dim, hidden_dim, batch_first=True)
-        self.attention = nn.Linear(hidden_dim * 2, hidden_dim)
-        self.out = nn.Linear(hidden_dim, output_dim)
 
-    def forward(self, src, trg, teacher_forcing_ratio=0.5):
-        batch_size, src_len, _ = src.size()
-        trg_len = trg.size(1)
-        trg_vocab_size = self.out.out_features
+        self.flatten = nn.Flatten()
+        self.initial_block = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3)
+        )
 
-        encoder_outputs, (hidden, cell) = self.encoder(src)
-        outputs = torch.zeros(batch_size, trg_len, trg_vocab_size).to(src.device)
-        input = trg[:, 0, :]
+        self.blocks = nn.Sequential(
+            *[ResidualBlock(hidden_dim, hidden_dim) for _ in range(num_blocks)]
+        )
 
-        for t in range(1, trg_len):
-            output, (hidden, cell) = self.decoder(input.unsqueeze(1), (hidden, cell))
-            attn_weights = torch.bmm(encoder_outputs, hidden.unsqueeze(2)).squeeze(2)
-            attn_weights = torch.softmax(attn_weights, dim=1)
-            context = torch.bmm(encoder_outputs.transpose(1, 2), attn_weights.unsqueeze(2)).squeeze(2)
-            output = torch.tanh(self.attention(torch.cat((context, hidden.squeeze(0)), dim=1)))
-            output = self.out(output)
-            outputs[:, t, :] = output
-            teacher_force = np.random.random() < teacher_forcing_ratio
-            input = trg[:, t, :] if teacher_force else output
+        self.transformer_block = TransformerBlock(hidden_dim, num_heads, ff_dim)
+        
+        self.fc_final = nn.Linear(hidden_dim, output_dim)
 
-        return outputs
-    
-    
+    def forward(self, x):
+        x = self.flatten(x)
+        x = self.initial_block(x)
+        x = self.blocks(x)
+        x = x.unsqueeze(0)  # Add sequence dimension for transformer (batch_size, seq_len, embed_dim)
+        x = self.transformer_block(x)
+        x = x.squeeze(0)  # Remove sequence dimension
+        x = self.fc_final(x)
+        return x
+
 def main():
+    
+
     data_dir = 'travelling_salesman_problem/maps'
     train_dataloader = create_dataloader(data_dir, split='train')
     val_dataloader = create_dataloader(data_dir, split='val')
     test_dataloader = create_dataloader(data_dir, split='test')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    input_dim = train_dataloader.dataset[0][0].shape[1]
-    hidden_dim = 128
-    output_dim = train_dataloader.dataset[0][1].shape[1] + 2
 
-    model = TSMPModel(input_dim=input_dim, hidden_dim=hidden_dim, output_dim=output_dim)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    
-    train(model, train_dataloader, val_dataloader, test_dataloader, optimizer, epochs=5, device=device)
+    one_batch = next(iter(train_dataloader))
+    input_obj, output_obj = one_batch
+    input_dim = input_obj.view(input_obj.shape[0], -1).shape[1]  # Flatten the input to 1D
+    output_dim = output_obj.view(output_obj.shape[0], -1).shape[1]  # Flatten the output to 1D
+    hidden_dim = 128*2  # You can adjust this parameter based on your model complexity
 
-    # Save the model
-    torch.save(model.state_dict(), 'travelling_salesman_problem/maps/model.pth')
+    model = TSMPModel(input_dim, hidden_dim, output_dim).to(device)
 
+    # Load the model
+    model.load_state_dict(torch.load('travelling_salesman_problem/models/model.pth'))
+
+    optimizer = torch.optim.Adam(model.parameters(), lr = 0.0001)
+    loss_fn = nn.MSELoss()
+
+    print(f'Model: {model}')
+    print(f'Input: {input_obj}')
+    print(f'Output: {output_obj}')
+    print(f'Input dimension: {input_dim}')
+    print(f'Output dimension: {output_dim}')
+
+    train(model, train_dataloader, val_dataloader, test_dataloader, optimizer, loss_fn, epochs=1000, device=device)
+
+    #Save the model
+    torch.save(model.state_dict(), 'travelling_salesman_problem/models/model.pth')
 
 if __name__ == '__main__':
     main()

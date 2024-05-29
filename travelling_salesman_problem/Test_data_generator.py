@@ -7,7 +7,7 @@ from NP_algorithm import load_map, held_karp, plot_path
 
 def main():
     n_cities = 18
-    n_maps = 100
+    n_maps = 1000
     for i in range(n_maps):
         cities = generate_random_map(n_cities)
         random = np.random.rand()
