@@ -4,6 +4,7 @@ from NP_algorithm import load_map, plot_path, held_karp
 import time
 
 def test_model(model_path, map_path, model: TSMPModel = None):
+    model.eval()
     # Load model
     model.load_state_dict(torch.load(model_path))
     
@@ -13,6 +14,7 @@ def test_model(model_path, map_path, model: TSMPModel = None):
     # Predict path
     time_start = time.time()
     X = torch.tensor(cities, dtype=torch.float32).unsqueeze(0)
+    
     path = model(X)
     path = path.squeeze().detach().numpy()
     time_end = time.time()
@@ -25,7 +27,7 @@ def test_model(model_path, map_path, model: TSMPModel = None):
 
 def test():
     model_path = 'travelling_salesman_problem/models/model.pth'
-    map_path = 'travelling_salesman_problem/maps/map_18_1f6933a2-c1d4-451e-91fc-49a544f377d9.npy'
+    map_path = 'travelling_salesman_problem/maps/map_18_24546156-60e7-4150-85f9-03c86975700e.npy'
     cities = load_map(map_path)
 
     print('Held-Karp Algorithm:')

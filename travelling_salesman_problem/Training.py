@@ -77,9 +77,11 @@ def train(model: torch.nn.Module,
         val_loss = val_step(model, val_dataloader, loss_fn, device)
         test_loss = test_step(model, test_dataloader, loss_fn, device)
 
-        print(f"Epoch: {epoch+1} | Train loss: {train_loss:.4f} | Val loss: {val_loss:.4f} | Test loss: {test_loss:.4f}")
-        results["train_loss"].append(train_loss)
-        results["val_loss"].append(val_loss)
-        results["test_loss"].append(test_loss)
+        if (epoch + 1) % 100 == 0:
+            print(f"Epoch: {epoch+1} | Train loss: {train_loss:.4f} | Val loss: {val_loss:.4f} | Test loss: {test_loss:.4f}")
+            
+            results["train_loss"].append(train_loss)
+            results["val_loss"].append(val_loss)
+            results["test_loss"].append(test_loss)
 
     return results

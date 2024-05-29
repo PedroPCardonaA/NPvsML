@@ -63,21 +63,40 @@ class TSMPModel(nn.Module):
         """
         Args:
             input_dim (int): Dimension of the input feature vector.
-            hidden_dim (int): Dimension of the hidden layer.
+            hidden_dim (int): Dimension of the hidden layers.
             output_dim (int): Dimension of the output feature vector.
         """
         super(TSMPModel, self).__init__()
+
+        # Define the model layers
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, output_dim)
-        self.relu = nn.ReLU()
+
+        self.block1 = self._make_block(input_dim, hidden_dim)
+        self.block2 = self._make_block(hidden_dim, hidden_dim)
+        self.block3 = self._make_block(hidden_dim, hidden_dim)
+        self.block4 = self._make_block(hidden_dim, hidden_dim)
+
+        self.fc_final = nn.Linear(hidden_dim, output_dim)
+
+    def _make_block(self, in_dim, out_dim):
+        block = nn.Sequential(
+            nn.Linear(in_dim, out_dim),
+            nn.BatchNorm1d(out_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3)
+        )
+        return block
 
     def forward(self, x):
         x = self.flatten(x)
-        x = self.relu(self.fc1(x))
-        x = self.relu(self.fc2(x))
-        x = self.fc3(x)
+        
+        x = self.block1(x)
+        x = self.block2(x)
+        x = self.block3(x)
+        x = self.block4(x)
+        
+        x = self.fc_final(x)
+
         return x
 
 def main():
@@ -98,9 +117,9 @@ def main():
     model = TSMPModel(input_dim, hidden_dim, output_dim).to(device)
 
     # Load the model
-    model.load_state_dict(torch.load('travelling_salesman_problem/models/model.pth'))
+    # model.load_state_dict(torch.load('travelling_salesman_problem/models/model.pth'))
 
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
     loss_fn = nn.MSELoss()
 
     print(f'Model: {model}')
@@ -109,7 +128,7 @@ def main():
     print(f'Input dimension: {input_dim}')
     print(f'Output dimension: {output_dim}')
 
-    train(model, train_dataloader, val_dataloader, test_dataloader, optimizer, loss_fn, epochs=100, device=device)
+    train(model, train_dataloader, val_dataloader, test_dataloader, optimizer, loss_fn, epochs=1000, device=device)
 
     #Save the model
     torch.save(model.state_dict(), 'travelling_salesman_problem/models/model.pth')
