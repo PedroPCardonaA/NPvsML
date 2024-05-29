@@ -48,7 +48,7 @@ def test():
     plot_path(cities, result)
 
     print('Neural Network Model:')
-    model = TSMPModel(18*18, 128, 20)
+    model = TSMPModel(18*18, 128*2, 20)
     model.load_state_dict(torch.load(model_path))
     test_model(model_path, map_path, model)
 

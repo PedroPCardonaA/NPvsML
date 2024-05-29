@@ -58,45 +58,101 @@ def create_dataloader(data_dir, batch_size=32, split='train', shuffle=True, num_
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     return dataloader
 
+class AttentionBlock(nn.Module):
+    def __init__(self, embed_dim, num_heads):
+        super(AttentionBlock, self).__init__()
+        self.attention = nn.MultiheadAttention(embed_dim, num_heads)
+        self.norm = nn.LayerNorm(embed_dim)
+        self.dropout = nn.Dropout(0.3)
+
+    def forward(self, x):
+        attn_output, _ = self.attention(x, x, x)
+        x = x + self.dropout(attn_output)
+        x = self.norm(x)
+        return x
+
+class TransformerBlock(nn.Module):
+    def __init__(self, embed_dim, num_heads, ff_dim):
+        super(TransformerBlock, self).__init__()
+        self.attention_block = AttentionBlock(embed_dim, num_heads)
+        self.ff_block = nn.Sequential(
+            nn.Linear(embed_dim, ff_dim),
+            nn.ReLU(),
+            nn.Linear(ff_dim, embed_dim)
+        )
+        self.norm = nn.LayerNorm(embed_dim)
+        self.dropout = nn.Dropout(0.3)
+
+    def forward(self, x):
+        x = self.attention_block(x)
+        ff_output = self.ff_block(x)
+        x = x + self.dropout(ff_output)
+        x = self.norm(x)
+        return x
+    
+class ResidualBlock(nn.Module):
+    def __init__(self, in_dim, out_dim):
+        super(ResidualBlock, self).__init__()
+        self.block = nn.Sequential(
+            nn.Linear(in_dim, out_dim),
+            nn.BatchNorm1d(out_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(out_dim, out_dim),
+            nn.BatchNorm1d(out_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3)
+        )
+        self.shortcut = nn.Sequential()
+        if in_dim != out_dim:
+            self.shortcut = nn.Sequential(
+                nn.Linear(in_dim, out_dim),
+                nn.BatchNorm1d(out_dim)
+            )
+
+    def forward(self, x):
+        out = self.block(x)
+        out += self.shortcut(x)
+        return nn.ReLU()(out)
+
+
 class TSMPModel(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_blocks=4, num_heads=8, ff_dim=512):
         """
         Args:
             input_dim (int): Dimension of the input feature vector.
             hidden_dim (int): Dimension of the hidden layers.
             output_dim (int): Dimension of the output feature vector.
+            num_blocks (int): Number of residual blocks to include.
+            num_heads (int): Number of attention heads in the transformer block.
+            ff_dim (int): Dimension of the feedforward network in the transformer block.
         """
         super(TSMPModel, self).__init__()
 
-        # Define the model layers
         self.flatten = nn.Flatten()
-
-        self.block1 = self._make_block(input_dim, hidden_dim)
-        self.block2 = self._make_block(hidden_dim, hidden_dim)
-        self.block3 = self._make_block(hidden_dim, hidden_dim)
-        self.block4 = self._make_block(hidden_dim, hidden_dim)
-
-        self.fc_final = nn.Linear(hidden_dim, output_dim)
-
-    def _make_block(self, in_dim, out_dim):
-        block = nn.Sequential(
-            nn.Linear(in_dim, out_dim),
-            nn.BatchNorm1d(out_dim),
+        self.initial_block = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
             nn.ReLU(),
             nn.Dropout(0.3)
         )
-        return block
+
+        self.blocks = nn.Sequential(
+            *[ResidualBlock(hidden_dim, hidden_dim) for _ in range(num_blocks)]
+        )
+
+        self.transformer_block = TransformerBlock(hidden_dim, num_heads, ff_dim)
+        
+        self.fc_final = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x):
         x = self.flatten(x)
-        
-        x = self.block1(x)
-        x = self.block2(x)
-        x = self.block3(x)
-        x = self.block4(x)
-        
+        x = self.initial_block(x)
+        x = self.blocks(x)
+        x = x.unsqueeze(0)  # Add sequence dimension for transformer (batch_size, seq_len, embed_dim)
+        x = self.transformer_block(x)
+        x = x.squeeze(0)  # Remove sequence dimension
         x = self.fc_final(x)
-
         return x
 
 def main():
@@ -112,14 +168,14 @@ def main():
     input_obj, output_obj = one_batch
     input_dim = input_obj.view(input_obj.shape[0], -1).shape[1]  # Flatten the input to 1D
     output_dim = output_obj.view(output_obj.shape[0], -1).shape[1]  # Flatten the output to 1D
-    hidden_dim = 128  # You can adjust this parameter based on your model complexity
+    hidden_dim = 128*2  # You can adjust this parameter based on your model complexity
 
     model = TSMPModel(input_dim, hidden_dim, output_dim).to(device)
 
     # Load the model
-    # model.load_state_dict(torch.load('travelling_salesman_problem/models/model.pth'))
+    model.load_state_dict(torch.load('travelling_salesman_problem/models/model.pth'))
 
-    optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr = 0.0001)
     loss_fn = nn.MSELoss()
 
     print(f'Model: {model}')
