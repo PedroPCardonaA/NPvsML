@@ -42,7 +42,7 @@ class TSPDataParser(Dataset):
         
         return X, Y
 
-def create_dataloader(data_dir, batch_size=32, split='train', shuffle=True, num_workers=0):
+def create_dataloader(data_dir, batch_size=64, split='train', shuffle=True, num_workers=0):
     """
     Args:
         data_dir (string): Directory with all the numpy files.
