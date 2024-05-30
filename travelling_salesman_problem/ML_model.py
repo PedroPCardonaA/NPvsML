@@ -63,7 +63,7 @@ class AttentionBlock(nn.Module):
         super(AttentionBlock, self).__init__()
         self.attention = nn.MultiheadAttention(embed_dim, num_heads)
         self.norm = nn.LayerNorm(embed_dim)
-        self.dropout = nn.Dropout(0.3)
+        self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
         attn_output, _ = self.attention(x, x, x)
@@ -81,7 +81,7 @@ class TransformerBlock(nn.Module):
             nn.Linear(ff_dim, embed_dim)
         )
         self.norm = nn.LayerNorm(embed_dim)
-        self.dropout = nn.Dropout(0.3)
+        self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
         x = self.attention_block(x)
@@ -168,14 +168,14 @@ def main():
     input_obj, output_obj = one_batch
     input_dim = input_obj.view(input_obj.shape[0], -1).shape[1]  # Flatten the input to 1D
     output_dim = output_obj.view(output_obj.shape[0], -1).shape[1]  # Flatten the output to 1D
-    hidden_dim = 128*2  # You can adjust this parameter based on your model complexity
+    hidden_dim = 128*4  # You can adjust this parameter based on your model complexity
 
-    model = TSMPModel(input_dim, hidden_dim, output_dim).to(device)
+    model = TSMPModel(input_dim, hidden_dim, output_dim, num_blocks=16,num_heads=32).to(device)
 
     # Load the model
     model.load_state_dict(torch.load('travelling_salesman_problem/models/model.pth'))
 
-    optimizer = torch.optim.Adam(model.parameters(), lr = 0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001, weight_decay=1e-5)
     loss_fn = nn.MSELoss()
 
     print(f'Model: {model}')
@@ -184,7 +184,7 @@ def main():
     print(f'Input dimension: {input_dim}')
     print(f'Output dimension: {output_dim}')
 
-    train(model, train_dataloader, val_dataloader, test_dataloader, optimizer, loss_fn, epochs=1000, device=device)
+    train(model, train_dataloader, val_dataloader, test_dataloader, optimizer, loss_fn, epochs=100, device=device)
 
     #Save the model
     torch.save(model.state_dict(), 'travelling_salesman_problem/models/model.pth')

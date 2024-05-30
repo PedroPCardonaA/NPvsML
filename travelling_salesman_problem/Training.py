@@ -1,4 +1,5 @@
 import torch
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 def train_step(model: torch.nn.Module,
                dataloader: torch.utils.data.DataLoader,
@@ -72,12 +73,15 @@ def train(model: torch.nn.Module,
         "test_loss": []
     }
 
+    shceduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
     for epoch in range(epochs):
         train_loss = train_step(model, train_dataloader, loss_fn, optimizer, device)
         val_loss = val_step(model, val_dataloader, loss_fn, device)
+        shceduler.step(val_loss)
         test_loss = test_step(model, test_dataloader, loss_fn, device)
+        
 
-        if (epoch + 1) % 100 == 0:
+        if (epoch + 1) % 10 == 0:
             print(f"Epoch: {epoch+1} | Train loss: {train_loss:.4f} | Val loss: {val_loss:.4f} | Test loss: {test_loss:.4f}")
             
             results["train_loss"].append(train_loss)
