@@ -6,7 +6,7 @@ def generate_random_map(board_size):
         raise ValueError('Board size must be greater than 0')
     
     board = np.zeros((board_size, board_size))
-    num_queens = np.random.randint(0, (board_size + 1)/4)
+    num_queens = np.random.randint(1, (board_size + 1)/4)
     
     for _ in range(num_queens):
         placed = False
@@ -31,6 +31,7 @@ def main():
     board_size = 8
     for i in range(n_boards):
         board = generate_random_map(board_size)
+        print(board)
         save_board(board, f'n_queens_problem/boards/board_{board_size}_{uuid.uuid4()}.npy')
 
 if __name__ == '__main__':

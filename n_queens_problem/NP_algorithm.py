@@ -3,7 +3,6 @@ import numpy as np
 def load_map(filename):
     return np.load(filename)
 
-
 class Node:
     def __init__(self, row=-1, col=-1):
         self.left = self
@@ -23,7 +22,7 @@ class DancingLinks:
     def __init__(self, board_size):
         self.board_size = board_size
         self.header = ColumnNode()
-        total_columns = 4 * board_size - 2
+        total_columns = 6 * board_size - 3  # Corrected total columns calculation
         self.columns = [ColumnNode(i) for i in range(total_columns)]
         
         self.header.right = self.columns[0]
@@ -40,13 +39,13 @@ class DancingLinks:
             for c in range(board_size):
                 nodes = [
                     Node(r, c),  # column constraint
-                    Node(r, board_size + c),  # row constraint
-                    Node(r, 2 * board_size + r - c + (board_size - 1)),  # main diagonal constraint
-                    Node(r, 3 * board_size + r + c)  # anti-diagonal constraint
+                    Node(r, board_size + r),  # row constraint
+                    Node(r, 2 * board_size + (r - c) + (board_size - 1)),  # main diagonal constraint
+                    Node(r, 4 * board_size - 1 + (r + c))  # anti-diagonal constraint
                 ]
                 
                 for node in nodes:
-                    print(node.row, node.col)
+                    print(f"Node: ({node.row}, {node.col})")
                     col_node = self.columns[node.col]
                     col_node.size += 1
                     node.column = col_node
@@ -94,6 +93,7 @@ class DancingLinks:
 
     def search(self, k, solution):
         if self.header.right == self.header:
+            print(f"Solution found: {solution}")
             return solution
 
         column = self.header.right
@@ -117,8 +117,9 @@ class DancingLinks:
             if result:
                 return result
             
-            row_node = solution.pop()
-            row_node = row_node.right
+            row, col = solution.pop()
+            row_node = self.columns[col]
+            node = row_node.left
             while node != row_node:
                 self.uncover(node.column)
                 node = node.left
@@ -126,9 +127,6 @@ class DancingLinks:
 
         self.uncover(column)
         return None
-
-def load_map(filename):
-    return np.load(filename)
 
 def dancing_links(board):
     N = len(board)
@@ -142,8 +140,6 @@ def dancing_links(board):
         return result
     else:
         return np.zeros((N, N), dtype=int)
-
-
 
 def main():
     board = load_map('n_queens_problem/boards/board_8_420ef5f3-3307-4ee4-84b8-e4d722a5bd07.npy')
