@@ -1,5 +1,5 @@
 import torch
-from ML_model import TSMPModel
+from ML_model import TSMPModel, define_model
 from NP_algorithm import load_map, plot_path, held_karp
 import time
 
@@ -48,8 +48,7 @@ def test():
     plot_path(cities, result)
 
     print('Neural Network Model:')
-    model = TSMPModel(18*18, 128*2, 20)
-    model.load_state_dict(torch.load(model_path))
+    model = define_model()
     test_model(model_path, map_path, model)
 
 

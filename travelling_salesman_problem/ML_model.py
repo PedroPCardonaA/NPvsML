@@ -154,35 +154,32 @@ class TSMPModel(nn.Module):
         x = x.squeeze(0)  # Remove sequence dimension
         x = self.fc_final(x)
         return x
-
-def main():
     
-
+def define_model():
     data_dir = 'travelling_salesman_problem/maps'
     train_dataloader = create_dataloader(data_dir, split='train')
-    val_dataloader = create_dataloader(data_dir, split='val')
-    test_dataloader = create_dataloader(data_dir, split='test')
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     one_batch = next(iter(train_dataloader))
     input_obj, output_obj = one_batch
     input_dim = input_obj.view(input_obj.shape[0], -1).shape[1]  # Flatten the input to 1D
     output_dim = output_obj.view(output_obj.shape[0], -1).shape[1]  # Flatten the output to 1D
     hidden_dim = 128*4  # You can adjust this parameter based on your model complexity
-
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = TSMPModel(input_dim, hidden_dim, output_dim, num_blocks=16,num_heads=32).to(device)
+    return model
+
+def main():
+    data_dir = 'travelling_salesman_problem/maps'
+    train_dataloader = create_dataloader(data_dir, split='train')
+    val_dataloader = create_dataloader(data_dir, split='val')
+    test_dataloader = create_dataloader(data_dir, split='test')
+    model = define_model()
 
     # Load the model
     model.load_state_dict(torch.load('travelling_salesman_problem/models/model.pth'))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001, weight_decay=1e-5)
     loss_fn = nn.MSELoss()
-
-    print(f'Model: {model}')
-    print(f'Input: {input_obj}')
-    print(f'Output: {output_obj}')
-    print(f'Input dimension: {input_dim}')
-    print(f'Output dimension: {output_dim}')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     train(model, train_dataloader, val_dataloader, test_dataloader, optimizer, loss_fn, epochs=100, device=device)
 
