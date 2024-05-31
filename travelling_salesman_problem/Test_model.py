@@ -2,6 +2,7 @@ import torch
 from ML_model import TSMPModel, define_model
 from NP_algorithm import load_map, plot_path, held_karp
 import time
+from Path_generator import get_path
 
 def test_model(model_path, map_path, model: TSMPModel = None):
     model.eval()
@@ -16,24 +17,21 @@ def test_model(model_path, map_path, model: TSMPModel = None):
     X = torch.tensor(cities, dtype=torch.float32).unsqueeze(0)
     
     path = model(X)
-    path = path.squeeze().detach().numpy()
+    path = path.squeeze().detach().cpu().numpy()
     time_end = time.time()
     print(f'Best path: {path}')
     print(f'Time taken: {time_end - time_start:.2f} seconds')
     
-    
     # Plot path
     plot_path(cities, path)
 
-def test():
-    model_path = 'travelling_salesman_problem/models/model.pth'
-    map_path = 'travelling_salesman_problem/maps/map_18_24546156-60e7-4150-85f9-03c86975700e.npy'
+def test(path):
+    model_path = f'{path}/models/model.pth'
+    map_path = f'{path}/maps/map_18_24546156-60e7-4150-85f9-03c86975700e.npy'
     cities = load_map(map_path)
 
     print('Held-Karp Algorithm:')
-
     
-     
     start_time = time.time()
     result = held_karp(cities)
     end_time = time.time()
@@ -51,9 +49,9 @@ def test():
     model = define_model()
     test_model(model_path, map_path, model)
 
-
 def main():
-    test()
+    path = get_path()
+    test(path)
 
 if __name__ == '__main__':
     main()
