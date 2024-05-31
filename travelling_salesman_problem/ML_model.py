@@ -4,6 +4,9 @@ from torch.utils.data import DataLoader, Dataset
 import os
 import numpy as np
 from torch import nn
+from Path_generator import get_path
+
+
 
 class TSPDataParser(Dataset):
     def __init__(self, data_dir, split='train'):
@@ -156,7 +159,8 @@ class TSMPModel(nn.Module):
         return x
     
 def define_model():
-    data_dir = 'travelling_salesman_problem/maps'
+    path = get_path()
+    data_dir = f'{path}/maps'
     train_dataloader = create_dataloader(data_dir, split='train')
     one_batch = next(iter(train_dataloader))
     input_obj, output_obj = one_batch
@@ -168,14 +172,15 @@ def define_model():
     return model
 
 def main():
-    data_dir = 'travelling_salesman_problem/maps'
+    path = get_path()
+    data_dir = f'{path}/maps'
     train_dataloader = create_dataloader(data_dir, split='train')
     val_dataloader = create_dataloader(data_dir, split='val')
     test_dataloader = create_dataloader(data_dir, split='test')
     model = define_model()
 
     # Load the model
-    model.load_state_dict(torch.load('travelling_salesman_problem/models/model.pth'))
+    model.load_state_dict(torch.load(f'{path}/models/model.pth'))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001, weight_decay=1e-5)
     loss_fn = nn.MSELoss()
@@ -184,7 +189,7 @@ def main():
     train(model, train_dataloader, val_dataloader, test_dataloader, optimizer, loss_fn, epochs=100, device=device)
 
     #Save the model
-    torch.save(model.state_dict(), 'travelling_salesman_problem/models/model.pth')
+    torch.save(model.state_dict(), f'{path}/models/model.pth')
 
 if __name__ == '__main__':
     main()
