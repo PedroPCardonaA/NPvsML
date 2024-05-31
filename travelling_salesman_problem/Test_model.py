@@ -5,6 +5,7 @@ import time
 from Path_generator import get_path
 
 def test_model(model_path, map_path, model: TSMPModel = None):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.eval()
     # Load model
     model.load_state_dict(torch.load(model_path))
@@ -15,6 +16,7 @@ def test_model(model_path, map_path, model: TSMPModel = None):
     # Predict path
     time_start = time.time()
     X = torch.tensor(cities, dtype=torch.float32).unsqueeze(0)
+    X = X.to(device)
     
     path = model(X)
     path = path.squeeze().detach().cpu().numpy()
