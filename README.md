@@ -12,3 +12,6 @@ This project aims to compare the performance of some of the most well-known NP p
 ## Purpose
 
 The purpose of this project is to evaluate and compare the efficiency and performance of traditional NP problem-solving methods with modern machine learning approaches. By doing so, we aim to understand the strengths and weaknesses of each approach in solving complex computational problems.
+
+## Author
+Pedro Cardona 
