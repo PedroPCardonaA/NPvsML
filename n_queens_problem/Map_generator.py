@@ -6,7 +6,7 @@ def generate_random_map(board_size):
         raise ValueError('Board size must be greater than 0')
     
     board = np.zeros((board_size, board_size))
-    num_queens = np.random.randint(1, (board_size + 1)/4)
+    num_queens = 0
     
     for _ in range(num_queens):
         placed = False
@@ -28,7 +28,7 @@ def save_board(board, filename):
 
 def main():
     n_boards = 1
-    board_size = 8
+    board_size = 25
     for i in range(n_boards):
         board = generate_random_map(board_size)
         print(board)
