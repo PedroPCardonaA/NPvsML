@@ -10,53 +10,15 @@ from Training import train
 
 class NQueensDataParser(Dataset):
     def __init__(self, data_dir, split='train'):
-        """
-        Args:
-            data_dir (string): Directory with all the numpy files.
-            split (string): One of 'train', 'val', 'test' to specify the data split.
-        """
         self.data_dir = data_dir
         self.split = split
         self.X_dir = os.path.join(data_dir, 'X-data', split)
         self.Y_dir = os.path.join(data_dir, 'Y-data', split)
-        
         self.file_names = [f for f in os.listdir(self.X_dir) if os.path.isfile(os.path.join(self.X_dir, f))]
-    def __len__(self):
-        return len(self.file_names)
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-        file_name = self.file_names[idx]
-        X_path = os.path.join(self.X_dir, file_name)
-        X = np.load(X_path)
-        X = torch.tensor(X, dtype=torch.float32)
-        Y_path = os.path.join(self.Y_dir, file_name)
-        Y = np.load(Y_path)
-        Y = torch.tensor(Y, dtype=torch.float32)
-        return X, Y
-    
-def create_dataloader(data_dir, batch_size=64, split='train', shuffle=True, num_workers=0):
-    dataset = NQueensDataParser(data_dir, split)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
-    return dataloader
 
-class NQueensDataParser(Dataset):
-    def __init__(self, data_dir, split='train'):
-        """
-        Args:
-            data_dir (string): Directory with all the numpy files.
-            split (string): One of 'train', 'val', 'test' to specify the data split.
-        """
-        self.data_dir = data_dir
-        self.split = split
-        self.X_dir = os.path.join(data_dir, 'X-data', split)
-        self.Y_dir = os.path.join(data_dir, 'Y-data', split)
-        
-        self.file_names = [f for f in os.listdir(self.X_dir) if os.path.isfile(os.path.join(self.X_dir, f))]
-    
     def __len__(self):
         return len(self.file_names)
-    
+
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
@@ -68,7 +30,7 @@ class NQueensDataParser(Dataset):
         Y = np.load(Y_path)
         Y = torch.tensor(Y, dtype=torch.float32)
         return X, Y
-    
+
 def create_dataloader(data_dir, batch_size=64, split='train', shuffle=True, num_workers=0):
     dataset = NQueensDataParser(data_dir, split)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
@@ -79,11 +41,13 @@ class ConvBlock(nn.Module):
         super(ConvBlock, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding)
         self.bn = nn.BatchNorm2d(out_channels) if use_batchnorm else nn.Identity()
+        self.pool = nn.MaxPool2d(2, 2)  # Adding a pooling layer to reduce spatial dimensions
         
     def forward(self, x):
         x = self.conv(x)
         x = self.bn(x)
         x = F.relu(x)
+        x = self.pool(x)  # Apply pooling
         return x
 
 class FullyConnectedBlock(nn.Module):
@@ -103,20 +67,20 @@ class NQueensModel(nn.Module):
         super(NQueensModel, self).__init__()
         self.N = N
         
-        # Define convolutional blocks
-        self.conv_block1 = ConvBlock(1, 64)
-        self.conv_block2 = ConvBlock(64, 128)
-        self.conv_block3 = ConvBlock(128, 256)
+        # Define convolutional blocks with reduced number of filters
+        self.conv_block1 = ConvBlock(1, 16)  # Reduced number of filters
+        self.conv_block2 = ConvBlock(16, 32)  # Reduced number of filters
         
         # Calculate the flatten size after convolutional layers
-        self.flatten_size = 256 * N * N
+        # The size reduction is dependent on the pooling layers
+        self.flatten_size = 32 * (N // 4) * (N // 4)
         
-        # Define fully connected blocks
-        self.fc_block1 = FullyConnectedBlock(self.flatten_size, 1024)
-        self.fc_block2 = FullyConnectedBlock(1024, 512)
+        # Define fully connected blocks with reduced number of neurons
+        self.fc_block1 = FullyConnectedBlock(self.flatten_size, 256)  # Reduced number of neurons
+        self.fc_block2 = FullyConnectedBlock(256, 128)  # Reduced number of neurons
         
         # Final fully connected layer without dropout
-        self.fc_final = nn.Linear(512, N * N)
+        self.fc_final = nn.Linear(128, N * N)
         
     def forward(self, x):
         # Reshape input to match the expected dimensions (batch_size, channels, height, width)
@@ -125,7 +89,6 @@ class NQueensModel(nn.Module):
         # Apply convolutional blocks
         x = self.conv_block1(x)
         x = self.conv_block2(x)
-        x = self.conv_block3(x)
         
         # Flatten the output from the convolutional layers
         x = x.view(-1, self.flatten_size)
@@ -151,13 +114,10 @@ def define_model():
     train_dataloader = create_dataloader(data_dir, split='train')
     one_batch = next(iter(train_dataloader))
     input_obj, output_obj = one_batch
-    input_dim = input_obj.view(input_obj.shape[0], -1).shape[1]  # Flatten the input to 1D
-    output_dim = output_obj.view(output_obj.shape[0], -1).shape[1]  # Flatten the output to 1D
-    hidden_dim = 128*4  # You can adjust this parameter based on your model complexity
+    N = int(np.sqrt(input_obj.view(input_obj.shape[0], -1).shape[1]))  # Calculate N from the data
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = NQueensModel(input_dim)
+    model = NQueensModel(N)
     return model    
-
 
 def main():
     path = get_path()
@@ -176,11 +136,8 @@ def main():
 
     train(model, train_dataloader, val_dataloader, test_dataloader, optimizer, loss_fn, epochs=100, device=device)
 
-    #Save the model
+    # Save the model
     torch.save(model.state_dict(), f'{path}/models/model.pth')
 
 if __name__ == '__main__':
     main()
-
-
-
