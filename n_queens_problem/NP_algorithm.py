@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 def load_map(filename):
     return np.load(filename)
@@ -41,6 +42,24 @@ def solve_nqueens(board):
     else:
         print("No solution found")
         return board
+    
+
+def plot_solution(board):
+    n = len(board)
+    fig, ax = plt.subplots()
+    ax.set_xticks(np.arange(n+1)-0.5, minor=True)
+    ax.set_yticks(np.arange(n+1)-0.5, minor=True)
+    ax.grid(which="minor", color="black", linestyle='-', linewidth=2)
+    ax.tick_params(which="minor", size=0)
+    ax.imshow(board, cmap='binary', extent=(0, n, 0, n))
+    
+    for i in range(n):
+        for j in range(n):
+            if board[i, j] == 1:
+                ax.text(j, n-i-1, 'Q', ha='center', va='center', fontsize=24, color='red')
+    
+    plt.gca().invert_yaxis()
+    plt.show()
 
 def main():
     board = load_map('n_queens_problem/boards/board_25_710946b6-a590-40c0-ad0c-d2815ec169fb.npy')
